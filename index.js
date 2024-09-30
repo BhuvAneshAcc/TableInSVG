@@ -1,16 +1,40 @@
-function table({ selects, data, columns, title, allowPagination, rowsPerPage }) {
-    let filteredData = [...data];
-    let originalData = [...data]; 
-    const svg = d3.select(selects);
-    const gap = 2;
-    const lineGap=0.3;
-    const cellPadding = 13;
-    const lineHeight = 18;
-    let currentPage = 1;
-    let sortColumn = null;
-    let sortState = 'none'; 
-    const container = d3.select(".container")
-    const containerHead = container
+
+class Table {
+    constructor({ selects, data, columns,columnwidth,tableColor,textStyle, title, allowPagination, rowsPerPage }) {
+        this.selects = selects;
+        this.data = [...data];
+        this.filteredData = [...data];
+        this.originalData = [...data];
+        this.columns = columns;
+        this.title = title;
+        this.tableColor=tableColor;
+        this.columnwidth=columnwidth;
+        this.textStyle=textStyle;
+        this.allowPagination = allowPagination;
+        this.rowsPerPage = rowsPerPage;
+        this.svg = d3.select(selects);
+        this.gap = 2;
+        this.lineGap = 0.3;
+        this.cellPadding = 13;
+        this.lineHeight = 18;
+        this.currentPage = 1;
+        this.sortColumn = null;
+        this.sortState = 'none';
+        this.container = d3.select(".container");
+
+        this.createTableHeader();
+        this.createBottomTableContainer();
+
+        this.createTable();
+        if (allowPagination) {
+            this.createPagination();
+        }
+        window.addEventListener('resize', this.handleresize.bind(this));
+
+    }
+
+    createTableHeader() {
+        const containerHead = this.container
         .insert("div", ":first-child")
         .attr("class", "container_head")
         .style("display", "flex")
@@ -23,10 +47,10 @@ function table({ selects, data, columns, title, allowPagination, rowsPerPage }) 
         .style("width", "100%")
         .style("font-size", "clamp(12px, 2vw, 25px)")
         .style("color", "#444")
-        .style("font-family", "sans-serif")
-        .text(title);
+        .style("font-family", (this.textStyle && this.textStyle.fontStyle)?this.textStyle.fontStyle:"Arial, sans-serif")
+        .text(this.title);   
 
-    const searchDiv = containerHead.append("div")
+        const searchDiv =containerHead.append("div")
         .attr("class", "search-bar")
         .style("display", "flex")
         .style("align-items", "center");
@@ -39,38 +63,29 @@ function table({ selects, data, columns, title, allowPagination, rowsPerPage }) 
         .style("padding-left", "2vw")
         .style("width", "15vw")
         .on("mouseover", function () {
-            d3.select(this)
-                .style("border", "1px solid black");
+            d3.select(this).style("border", "1px solid black");
         })
         .on("mouseout", function () {
-            d3.select(this)
-                .style("border", "1px solid lightgray");
+            d3.select(this).style("border", "1px solid lightgray");
         })
         .style("border-radius", "50px")
         .style("border", "1px solid lightgray");
 
-    searchInput.on("input", function () {
-        const searchTerm = this.value.toLowerCase();
-        filteredData = data.filter(row =>
+    searchInput.on("input", () => {
+        const searchTerm = searchInput.property("value").toLowerCase();
+        this.filteredData = this.data.filter(row =>
             Object.values(row).some(val => String(val).toLowerCase().includes(searchTerm))
         );
-        currentPage = 1;
-
-        createTable();
-        if (allowPagination) {
-            createPagination();
+        this.currentPage = 1;
+        this.createTable();
+        if (this.allowPagination) {
+            this.createPagination();
         }
-    });
+    });    }
 
-    let rowsPerPageOptions = ["All",5, 10, 20];
+    createBottomTableContainer() {
 
-    if (!rowsPerPageOptions.includes(rowsPerPage)) {
-        rowsPerPageOptions.push(rowsPerPage);
-        rowsPerPageOptions.sort((a, b) => a - b);
-    }
-
-    const bottomTableContainer = container
-        .append("div")
+        const bottomTableContainer = this.container.append("div")
         .attr("class", "bottom_table_container")
         .style("display", "flex")
         .style("justify-content", "space-between")
@@ -95,7 +110,7 @@ function table({ selects, data, columns, title, allowPagination, rowsPerPage }) 
         .style("margin-right", "5px")
         .style("color", "#444")
         .style("font-family", "sans-serif");
- 
+
     const select = rowPerPageDiv.append("div")
         .attr("id", "rows_Per_Page_div")
         .append("select")
@@ -110,68 +125,97 @@ function table({ selects, data, columns, title, allowPagination, rowsPerPage }) 
         })
         .style("border-radius", "5px");
 
+    const rowsPerPageOptions = ["All", 5, 10, 20];
+    if (!rowsPerPageOptions.includes(this.rowsPerPage)) {
+        rowsPerPageOptions.push(this.rowsPerPage);
+        rowsPerPageOptions.sort((a, b) => a - b);
+    }
+
     select.selectAll("option")
         .data(rowsPerPageOptions)
         .enter()
         .append("option")
         .text(d => d)
-        .attr("value", d => d ==="All"?data.length:d)
-        .property("selected", d => d === rowsPerPage);
+        .attr("value", d => d === "All" ? this.data.length : d)
+        .property("selected", d => d === this.rowsPerPage);
 
+    select.on("change", () => {
+        this.rowsPerPage = select.property("value") === String(this.data.length) ? this.data.length : +select.property("value");
+        if (this.rowsPerPage === this.data.length) {
+            this.container.select(".scrollbar_container")
+                .style("height", "570px")
+                .style("overflow", "auto");
+        } else if (this.rowsPerPage > 10) {
+            this.container.select(".scrollbar_container")
+                .style("height", "570px")
+                .style("overflow", "auto");
+        } else {
+            this.container.select(".scrollbar_container")
+                .style("height", "auto")
+                .style("overflow", "hidden");
+        }
+        if (this.allowPagination) {
+            this.createPagination();
+        }
+        this.createTable();
+    }); 
     bottomTableContainer.append("div")
-        .attr("class", "pagination_container");
+                        .attr("class","pagination_container");
+}
 
-    if (rowsPerPage > 10) {
-        container.select(".scrollbar_container")
-            .style("position", "relative")
-            .style("height", "570px")
-            .style("overflow", "auto");
-    } else {
-        container.select(".scrollbar_container")
-            .style("height", "auto")
-            .style("overflow", "hidden");
+
+    calculateColumnWidths() {
+        const tempSVG = this.svg.append("g").attr("class", "temp").attr("opacity", 0);
+        const padding = 60;
+        const columnWidths = this.columns.map(column => {
+            const headerText = tempSVG.append("text").text(column.name);
+            const headerWidth = headerText.node().getBBox().width + padding;
+
+            const maxContentWidth = d3.max(this.filteredData, row => {
+                const contentText = tempSVG.append("text").text(row[column.name]);
+                const contentWidth = contentText.node().getBBox().width;
+                contentText.remove();
+                return contentWidth + padding;
+            });
+
+            headerText.remove();
+            return Math.max(headerWidth, maxContentWidth);
+        });
+
+        tempSVG.remove();
+        if(this.columnwidth){
+            return this.columnwidth;
+        }
+        else{
+        return columnWidths;
+        }
     }
-    container.select(".scrollbar_container")
-             .style("widht","100%")
-             .style("overflow","auto");
 
-             function calculateColumnWidths(data, columns) {
-                const tempSVG = svg.append("g").attr("class", "temp"); 
-            
-                const padding = 50; 
-                const maxColumnWidth = 300; 
-                const columnWidths = columns.map(column => {
-                    const headerText = tempSVG.append("text").text(column.name);
-                    const headerWidth = headerText.node().getBBox().width + padding;
-            
-                    const maxContentWidth = d3.max(data, row => {
-                        const contentText = tempSVG.append("text").text(row[column.name]);
-                        const contentWidth = contentText.node().getBBox().width;
-                        contentText.remove();
-                        return contentWidth + padding;
-                    });
-            
-                    headerText.remove();
-                    const finalWidth = Math.max(headerWidth, maxContentWidth);
-                    return Math.min(finalWidth, maxColumnWidth); 
-                });
-                console.log(columnWidths);
-                tempSVG.remove(); 
-            
-                return columnWidths;
-            }
-  
-            
-            function updateSVGSize() {
-                const containerWidth = container.node().clientWidth;
-                const calculatedWidths = calculateColumnWidths(filteredData, columns);
-                const totalTableWidth = d3.sum(calculatedWidths) + (columns.length - 1) * gap;
+    updateSVGDimensions() {
+                const containerWidth = this.container.node().clientWidth;
+                const calculatedWidths = this.calculateColumnWidths(this.filteredData, this.columns);
+                const totalTableWidth = d3.sum(calculatedWidths) + (this.columns.length - 1) * this.gap;
+                if(this.columnwidth){
+                    if(totalTableWidth < containerWidth){
+                        const remainSpace=(containerWidth-totalTableWidth)/this.columns.length;
+                        for(let i=0;i<calculatedWidths.length;i++){
+                                calculatedWidths[i]+=remainSpace;
+                        }
+                        this.container.select(".scrollbar_container").style("overflow-x", "hidden");
+
+                    }
+                    else{
+                        this.container.select(".scrollbar_container").style("overflow-x", "scroll");
+
+                    }
+                }
+                else{
             
                 if (totalTableWidth < containerWidth) {
                     const remainingSpace = containerWidth - totalTableWidth;
             
-                    const variance = columns.map((column) => {
-                        const uniqueLengths = new Set(originalData.map(row => String(row[column.name]).length)).size;
+                    const variance = this.columns.map((column) => {
+                        const uniqueLengths = new Set(this.originalData.map(row => String(row[column.name]).length)).size;
                         return uniqueLengths > 1 ? 1 : 0; 
                     });
             
@@ -186,47 +230,48 @@ function table({ selects, data, columns, title, allowPagination, rowsPerPage }) 
                         }
                     }
             
-                    container.select(".scrollbar_container").style("overflow-x", "hidden");
+                    this.container.select(".scrollbar_container").style("overflow-x", "hidden");
                 } else {
-                    container.select(".scrollbar_container").style("overflow-x", "scroll");
+                    this.container.select(".scrollbar_container").style("overflow-x", "scroll");
                 }
+            }
             
-                svg.attr("width", Math.max(totalTableWidth, containerWidth));
+                this.svg.attr("width", Math.max(totalTableWidth, containerWidth));
             
                 return { svgWidth: Math.max(totalTableWidth, containerWidth), calculatedWidths};
-            }   
-
-    function createTable() {
-           const { calculatedWidths } = updateSVGSize();
-    svg.selectAll("*").remove(); 
-    const headerGroup = svg.append("g").attr("class", "header");
+            }
+    createTable() {
+    const { calculatedWidths } = this.updateSVGDimensions();
+    this.svg.selectAll("*").remove();
+    const headerGroup = this.svg.append("g").attr("class", "header");
     let X = 0;
+    const self = this; 
 
-    columns.forEach((header, i) => {
+    this.columns.forEach((header, i) => {
         headerGroup.append("rect")
             .attr("x", X)
             .attr("y", 0)
             .attr("width", calculatedWidths[i])
             .attr("height", 50)
-            .attr("fill", "lightgray")
+            .attr("fill", (this.tableColor && this.tableColor.headerColor)?this.tableColor.headerColor:"lightgray")
             .attr("rx", 5)
             .attr("ry", 5);
 
         headerGroup.append("text")
-            .attr("x", X + cellPadding)
-            .attr("y",lineHeight*1.5)
+            .attr("x", X + this.cellPadding)
+            .attr("y", this.lineHeight * 1.5)
             .text(header.name)
             .attr("text-anchor", "start")
             .attr("dominant-baseline", "middle")
-            .style("font-family", "Arial, sans-serif")
+            .style("font-family", (this.textStyle && this.textStyle.fontStyle)?this.textStyle.fontStyle:"Arial, sans-serif")
             .attr("font-weight", "500")
             .attr("font-size", "clamp(10px, 1.2vw, 16px)");
 
         if (header.sortable) {
-            const sortSymbol = svg.append("text")
+            this.svg.append("text")
                 .attr("x", X + calculatedWidths[i] - 25)
-                .attr("y", lineHeight*1.5 +4)
-                .text(sortColumn === header.name ? (sortState === 'asc' ? '▲' : (sortState === 'desc' ? '▼' : '⇅')) : '⇅')
+                .attr("y", this.lineHeight * 1.5 + 4)
+                .text(this.sortColumn === header.name ? (this.sortState === 'asc' ? '▲' : (this.sortState === 'desc' ? '▼' : '⇅')) : '⇅')
                 .attr("font-size", "clamp(10px, 1.2vw, 16px)")
                 .style("fill", "rgb(36, 37, 37)")
                 .style("cursor", 'pointer')
@@ -239,16 +284,16 @@ function table({ selects, data, columns, title, allowPagination, rowsPerPage }) 
                     d3.select(this).attr("stroke", "");
                 })
                 .on("click", () => {
-                    sortTable(header.name);
+                    self.sortTable(header.name); 
                 });
         }
 
-        X += calculatedWidths[i] + gap;
+        X += calculatedWidths[i] + this.gap;
     });
 
-    if (filteredData.length === 0) {
-        svg.append("text")
-            .attr("x", container.node().clientWidth / 2)
+    if (this.filteredData.length === 0) {
+        this.svg.append("text")
+            .attr("x", this.container.node().clientWidth / 2)
             .attr("y", 100)
             .attr("text-anchor", "middle")
             .style("font-family", "Arial, sans-serif")
@@ -257,349 +302,335 @@ function table({ selects, data, columns, title, allowPagination, rowsPerPage }) 
         return;
     }
 
-    const start = (currentPage - 1) * rowsPerPage;
-    const end = currentPage * rowsPerPage;
-    const alterData = filteredData.slice(start, end);
+    const start = (this.currentPage - 1) * this.rowsPerPage;
+    const end = this.currentPage * this.rowsPerPage;
+    const alterData = this.filteredData.slice(start, end);
 
-    let currentY = lineHeight * 1.5 + 5;
+    let currentY = this.lineHeight * 1.5 + 5;
 
-    const rows = svg.selectAll("g.row")
+    const rows = this.svg.selectAll("g.row")
         .data(alterData)
         .enter()
         .append("g")
         .attr("class", "row")
         .attr("transform", (d, i) => `translate(0, ${currentY})`)
-        .each(function(d) {
-            const currentRow = d3.select(this);
-            const cellData = columns.map(header => d[header.name] !== undefined ? d[header.name] : "");
-            let maxCellHeight = 0;
-
-            cellData.forEach((cell, i) => {
-                const x = i * (calculatedWidths[i] + gap);
-                const tempText = svg.append("text")
-                    .attr("x", x + cellPadding)
-                    .attr("y", 0)
-                    .text(cell)
-                    .call(wrapText, calculatedWidths[i] - 2 * cellPadding);
-
-                const cellHeight = tempText.node().getBBox().height;
-
-                if (cellHeight > maxCellHeight) {
-                    maxCellHeight = cellHeight;
-                }
-
-                tempText.remove();
-            });
-
-            let z = 0;
-            cellData.forEach((cell, i) => {
-                const rowRect = currentRow.append("rect")
-                    .attr("x", z)
-                    .attr("y", 20)
-                    .attr("width", calculatedWidths[i])
-                    .attr("height", maxCellHeight + 2 * cellPadding)
-                    .attr("fill", "#fff")
-                    .attr("rx", 5)
-                    .attr("ry", 5)
-                    if (columns[i].sortable && sortColumn === columns[i].name && sortState !== 'none') {
-                        rowRect.style("filter", "drop-shadow(0px 0px 2px rgba(0, 0, 0, 0.3))");
-                    }
-
-                currentRow.append("text")
-                    .attr("x", typeof cell === 'number' ? z + calculatedWidths[i] / 2 : z + cellPadding)
-                    .attr("y", cellPadding + lineHeight + 15)
-                    .text(cell)
-                    .call(wrapText, calculatedWidths[i] - 2 * cellPadding)
-                    .attr("text-anchor", typeof cell === 'number' ? "middle" : "start")
-                    .style("font-family", "Arial, sans-serif")
-                    .style("font-size", "clamp(10px, 1vw, 14px)")
-                    .style("text-align", "center");
-
-
-                z += calculatedWidths[i] + gap;
-            });
-
-            currentY += maxCellHeight + gap + 2 * cellPadding;
-            d3.select(this).attr("transform", `translate(0, ${currentY - maxCellHeight - gap - 2 * cellPadding})`);
+        .on("mouseover", function () {
+            d3.select(this).selectAll("rect").style("opacity", 0.5);
+        })
+        .on("mouseout", function () {
+            d3.select(this).selectAll("rect").style("opacity", 1);
+            d3.select(this).selectAll("text").style("opacity", 1);
         });
 
-        function wrapText(text, width) {
-            text.each(function() {
-                const textElement = d3.select(this);
-                const words = breakWords(textElement.text(), width);
-                let word;
-                let line = [];
-                const lineHeight = 1.1;
-                const y = textElement.attr("y");
-                const x = textElement.attr("x");
-                let tspan = textElement.text(null).append("tspan").attr("x", x).attr("y", y).attr("dy", "0em");
+    rows.each(function (d) {
+        const currentRow = d3.select(this);
+        const cellData = self.columns.map(header => d[header.name] !== undefined ? d[header.name] : "");
+        let maxCellHeight = 0;
 
-                while ((word = words.pop())) {
-                    line.push(word);
-                    tspan.text(line.join(" "));
-                    if (tspan.node().getComputedTextLength() > width) {
-                        line.pop();
-                        tspan.text(line.join(" "));
-                        line = [word];
-                        tspan = textElement.append("tspan").attr("x", x).attr("dy", `${lineHeight+lineGap}em`).text(word);
-                    }
-                }
-            });
-        }
+        cellData.forEach((cell, i) => {
+            const x = i * (calculatedWidths[i] + self.gap);
+            const tempText = self.svg.append("text") 
+                .attr("x", x + self.cellPadding)
+                .attr("y", 0)
+                .text(cell)
+                .call(wrapText, calculatedWidths[i] - 2 * self.cellPadding);
 
-        function breakWords(text, width) {
-            const words = text.split(/\s+/);
-            const brokenWords = [];
-            words.forEach(word => {
-                let currentWord = word;
-                while (currentWord.length) {
-                    const fragment = currentWord.slice(0, Math.floor(width / 8)); 
-                    brokenWords.push(fragment);
-                    currentWord = currentWord.slice(fragment.length);
-                }
-            });
-            return brokenWords.reverse(); 
-        }
+            const cellHeight = tempText.node().getBBox().height;
 
-        const totalHeight = currentY + 40; 
-        console.log(totalHeight + "height");
-        svg.attr("height", totalHeight);
-
-}
-
-    function sortTable(columnName) {
-        if (sortColumn !== columnName) {
-            sortState = 'none'; 
-        }
-        sortColumn = columnName;
-        
-        switch (sortState) {
-            case 'none':
-                sortState = 'asc';
-                filteredData.sort((a, b) => d3.ascending(a[columnName], b[columnName]));
-                break;
-            case 'asc':
-                sortState = 'desc';
-                filteredData.sort((a, b) => d3.descending(a[columnName], b[columnName]));
-                break;
-            case 'desc':
-                sortState = 'none';
-                filteredData = [...originalData]; 
-                break;
-        }
-
-        currentPage = 1;
-        createTable();
-        if (allowPagination) {
-            createPagination();
-        }
-    }
-    function createPagination() {
-        const totalPages = Math.ceil(filteredData.length / rowsPerPage);
-        const pagination = container.select(".pagination_container");
-        pagination.selectAll("*").remove();
-
-        function createPageButton(pageNumber) {
-            pagination.append("span")
-                .attr("class", "Pagination")
-                .style("cursor", "pointer")
-                .style("background-color", pageNumber === currentPage ? "#e0e0e0" : "#ffffff")
-                .style("border", pageNumber === currentPage ? "1px solid #444" : "1px solid #ddd")
-                .style("padding", "0.8vw")
-                .style("margin", "2.4px")
-                .style("color", "#444")
-                .style("border-radius", "5px")
-                .style("font-size", "2vmin")
-                .style("font-weight", pageNumber === currentPage ? "bold" : "normal")
-                .style("font-family", "Arial, sans-serif")
-                .style("text-align", "center")
-                .on("mouseover", function () {
-                    d3.select(this).style("background-color", "#d0d0d0");
-                })
-                .on("mouseout", function () {
-                    d3.select(this).style("background-color", pageNumber === currentPage ? "#e0e0e0" : "#f9f9f9");
-                })
-                .on("click", () => {
-                    currentPage = pageNumber;
-                    createTable();
-                    createPagination();
-                })
-                .append("tspan")
-                .text(pageNumber);
-        }
-        pagination.append("span")
-            .attr("class", "Pagination")
-            .style("cursor", currentPage > 1 ? "pointer" : "default")
-            .style("border", "1px solid #ddd")
-            .style("padding", "0.8vw")
-            .style("background-color", "#f9f9f9")
-            .style("margin", "2.4px")
-            .style("border-radius", "5px")
-            .style("font-size", "2vmin")
-            .style("font-weight", "normal")
-            .style("font-family", "Arial, sans-serif")
-            .style("text-align", "center")
-            .on("mouseover", function () {
-                if (currentPage > 1) {
-                    d3.select(this).style("background-color", "#d0d0d0");
-                }
-            })
-            .on("mouseout", function () {
-                d3.select(this).style("background-color", "#f9f9f9");
-            })
-            .on("click", () => {
-                if (currentPage > 1) {
-                    currentPage--;
-                    createTable();
-                    createPagination();
-                }
-            })
-            .append("tspan")
-            .text("Previous")
-            .style("color", currentPage === 1 ? "rgba(0, 0, 0, 0.375)" : "#333");
-        if (totalPages <= 5) {
-            for (let i = 1; i <= totalPages; i++) {
-                createPageButton(i);
-            }
-        } else {
-            createPageButton(1);
-            const startPage = Math.max(2, currentPage - 1);
-            const endPage = Math.min(totalPages - 1, currentPage + 1);
-
-            if (currentPage > 3) {
-                if (startPage > 2) {
-                    pagination.append("span")
-                        .attr("class", "Pagination")
-                        .style("background-color", "#f9f9f9")
-                        .style("padding", "0.8vw")
-                        .style("margin", "2.4px")
-                        .style("border", "1px solid #ddd")
-                        .style("text-align", "center")
-                        .text("...");
-                }
+            if (cellHeight > maxCellHeight) {
+                maxCellHeight = cellHeight;
             }
 
-            for (let i = startPage; i <= endPage; i++) {
-                createPageButton(i);
+            tempText.remove();
+        });
+
+        let z = 0;
+        cellData.forEach((cell, i) => {
+            const rowRect = currentRow.append("rect")
+                .attr("x", z)
+                .attr("y", 20)
+                .attr("width", calculatedWidths[i])
+                .attr("height", maxCellHeight + 2 * self.cellPadding)
+                .attr("fill", (self.tableColor && self.tableColor.rowColor)?self.tableColor.rowColor:"#fff")
+                .attr("rx", 5)
+                .attr("ry", 5);
+
+            if (self.columns[i].sortable && self.sortColumn === self.columns[i].name && self.sortState !== 'none') {
+                rowRect.style("filter", "drop-shadow(0px 0px 2px rgba(0, 0, 0, 0.3))");
             }
 
-            if (currentPage < totalPages - 2) {
-                if (endPage < totalPages - 1) {
-                    pagination.append("span")
-                        .attr("class", "Pagination")
-                        .style("background-color", "#f9f9f9")
-                        .style("padding", "0.8vw")
-                        .style("margin", "2.4px")
-                        .style("border", "1px solid #ddd")
-                        .style("text-align", "center")
-                        .text("...");
-                }
-            }
+            currentRow.append("text")
+                .attr("x", typeof cell === 'number' ? z + calculatedWidths[i] / 2 : z + self.cellPadding)
+                .attr("y", self.cellPadding + self.lineHeight + 15)
+                .text(cell)
+                .call(wrapText.bind(self), calculatedWidths[i] - 2 * self.cellPadding)
+                .attr("text-anchor", typeof cell === 'number' ? "middle" : "start")
+                .style("font-family", (self.textStyle && self.textStyle.fontStyle)?self.textStyle.fontStyle:"Arial, sans-serif")
+                .style("font-size", "clamp(10px, 1vw, 14px)")
+                .style("text-align", "center");
 
-            createPageButton(totalPages);
-        }
+            z += calculatedWidths[i] + self.gap;
+        });
 
-        pagination.append("span")
-            .attr("class", "Pagination")
-            .style("cursor", currentPage < totalPages ? "pointer" : "default")
-            .style("background-color", "#f9f9f9")
-            .style("border", "1px solid #ddd")
-            .style("padding", "0.8vw")
-            .style("margin", "2.4px")
-            .style("border-radius", "5px")
-            .style("font-size", "2vmin")
-            .style("font-weight", "normal")
-            .style("font-family", "Arial, sans-serif")
-            .style("text-align", "center")
-            .on("mouseover", function () {
-                if (currentPage < totalPages) {
-                    d3.select(this).style("background-color", "#d0d0d0");
-                }
-            })
-            .on("mouseout", function () {
-                d3.select(this).style("background-color", "#f9f9f9");
-            })
-            .on("click", () => {
-                if (currentPage < totalPages) {
-                    currentPage++;
-                    createTable();
-                    createPagination();
-                }
-            })
-            .append("span")
-            .text("Next")
-            .style("color", currentPage < totalPages ? "#333" : "rgba(0, 0, 0, 0.375)");
-    }
-  
-
-    select.on("change", function () {
-        rowsPerPage = this.value === String(data.length) ? data.length : +this.value; 
-    
-        if (rowsPerPage === data.length) {
-            container.select(".scrollbar_container")
-                .style("position", "relative")
-                .style("height", "auto")
-                .style("height", "570px")
-                .style("overflow", "auto");
-        } else if (rowsPerPage > 10) {
-            container.select(".scrollbar_container")
-                .style("position", "relative")
-                .style("height", "570px")
-                .style("overflow", "auto");
-        } else {
-            container.select(".scrollbar_container")
-                .style("height", "auto")
-                .style("overflow", "hidden");
-        }
-    
-        if (allowPagination) {
-            createPagination();
-        }
-        createTable();
+        currentY += maxCellHeight + self.gap + 2 * self.cellPadding;
+        d3.select(this).attr("transform", `translate(0, ${currentY - maxCellHeight - self.gap - 2 * self.cellPadding})`);
     });
 
-    if (allowPagination) {
-        createPagination();
-    }
-    function handleResize() {
-        createTable();
+    function wrapText(text, width) {
+        text.each(function () {
+            const textElement = d3.select(this);
+            const words = breakWords(textElement.text(), width);
+            let word;
+            let line = [];
+            const lineHeight = 1.1;
+            const y = textElement.attr("y");
+            const x = textElement.attr("x");
+            let tspan = textElement.text(null).append("tspan").attr("x", x).attr("y", y).attr("dy", "0em");
+
+            while ((word = words.pop())) {
+                line.push(word);
+                tspan.text(line.join(" "));
+                if (tspan.node().getComputedTextLength() > width) {
+                    line.pop();
+                    tspan.text(line.join(" "));
+                    line = [word];
+                    tspan = textElement.append("tspan").attr("x", x).attr("dy", `${self.lineHeight + self.lineGap}em`).text(word); // Use `self`
+                }
+            }
+        });
     }
 
-    window.addEventListener("resize", handleResize);
-    createTable();
+    function breakWords(text, width) {
+        const words = text.split(/\s+/);
+        const brokenWords = [];
+        words.forEach(word => {
+            let currentWord = word;
+            while (currentWord.length) {
+                const fragment = currentWord.slice(0, Math.floor(width / 8)); 
+                brokenWords.push(fragment);
+                currentWord = currentWord.slice(fragment.length);
+            }
+        });
+        return brokenWords.reverse();  
+    }
+
+    const totalHeight = currentY + 40;  
+    console.log(totalHeight + "height");
+    this.svg.attr("height", totalHeight);  
 }
-const inputs = {
-    selects: "#table",
-    title: "Personal Information",
-    data: [
+
+    sortTable(columnName){
+
+
+if (this.sortColumn !== columnName) {
+    this.sortState = 'none';
+}
+this.sortColumn = columnName;
+
+switch (this.sortState) {
+    case 'none':
+        this.sortState = 'asc';
+        this.filteredData.sort((a, b) => d3.ascending(a[columnName], b[columnName]));
+        break;
+    case 'asc':
+        this.sortState = 'desc';
+        this.filteredData.sort((a, b) => d3.descending(a[columnName], b[columnName]));
+        break;
+    case 'desc':
+        this.sortState = 'none';
+        this.filteredData = [...this.originalData];
+        break;
+}
+
+this.createTable();    
+}
+createPagination() {
+    const self = this; 
+
+    const totalPages = Math.ceil(self.filteredData.length / self.rowsPerPage);
+    if (self.container.select(".pagination_container").empty()) {
+    self.container.append("div").attr("class", "pagination_container");
+}
+
+    const pagination = self.container.select(".pagination_container");
+    pagination.selectAll("*").remove();
+
+    const createPageButton = (pageNumber) => {
+        pagination.append("span")
+            .attr("class", "Pagination")
+            .style("cursor", "pointer")
+            .style("background-color", pageNumber === self.currentPage ? "#e0e0e0" : "#ffffff")
+            .style("border", pageNumber === self.currentPage ? "1px solid #444" : "1px solid #ddd")
+            .style("padding", "0.8vw")
+            .style("margin", "2.4px")
+            .style("color", "#444")
+            .style("border-radius", "5px")
+            .style("font-size", "2vmin")
+            .style("font-weight", pageNumber === self.currentPage ? "bold" : "normal")
+            .style("font-family", "Arial, sans-serif")
+            .style("text-align", "center")
+            .on("mouseover", function () {
+                d3.select(this).style("background-color", "#d0d0d0");
+            })
+            .on("mouseout", function () {
+                d3.select(this).style("background-color", pageNumber === self.currentPage ? "#e0e0e0" : "#f9f9f9");
+            })
+            .on("click", () => {
+                self.currentPage = pageNumber;
+                self.createTable();
+                self.createPagination();
+            })
+            .append("tspan")
+            .text(pageNumber);
+    };
+
+     pagination.append("span")
+        .attr("class", "Pagination")
+        .style("cursor", self.currentPage > 1 ? "pointer" : "default")
+        .style("border", "1px solid #ddd")
+        .style("padding", "0.8vw")
+        .style("background-color", "#f9f9f9")
+        .style("margin", "2.4px")
+        .style("border-radius", "5px")
+        .style("font-size", "2vmin")
+        .style("font-weight", "normal")
+        .style("font-family", "Arial, sans-serif")
+        .style("text-align", "center")
+        .on("mouseover", function() {
+            if (self.currentPage > 1) {
+                d3.select(this).style("background-color", "#d0d0d0");
+            }
+        })
+        .on("mouseout", function(){
+            d3.select(this).style("background-color", "#f9f9f9");
+        })
+        .on("click", () => {
+            if (self.currentPage > 1) {
+                self.currentPage--;
+                self.createTable();
+                self.createPagination();
+            }
+        })
+        .append("tspan")
+        .text("Previous")
+        .style("color", self.currentPage === 1 ? "rgba(0, 0, 0, 0.375)" : "#333");
+
+     if (totalPages <= 5) {
+        for (let i = 1; i <= totalPages; i++) {
+            createPageButton(i);
+        }
+    } else {
+        createPageButton(1);
+        const startPage = Math.max(2, self.currentPage - 1);
+        const endPage = Math.min(totalPages - 1, self.currentPage + 1);
+
+        if (self.currentPage > 3) {
+            if (startPage > 2) {
+                pagination.append("span")
+                    .attr("class", "Pagination")
+                    .style("background-color", "#f9f9f9")
+                    .style("padding", "0.8vw")
+                    .style("margin", "2.4px")
+                    .style("border", "1px solid #ddd")
+                    .style("text-align", "center")
+                    .text("...");
+            }
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            createPageButton(i);
+        }
+
+        if (self.currentPage < totalPages - 2) {
+            if (endPage < totalPages - 1) {
+                pagination.append("span")
+                    .attr("class", "Pagination")
+                    .style("background-color", "#f9f9f9")
+                    .style("padding", "0.8vw")
+                    .style("margin", "2.4px")
+                    .style("border", "1px solid #ddd")
+                    .style("text-align", "center")
+                    .text("...");
+            }
+        }
+
+        createPageButton(totalPages);
+    }
+
+     pagination.append("span")
+        .attr("class", "Pagination")
+        .style("cursor", self.currentPage < totalPages ? "pointer" : "default")
+        .style("background-color", "#f9f9f9")
+        .style("border", "1px solid #ddd")
+        .style("padding", "0.8vw")
+        .style("margin", "2.4px")
+        .style("border-radius", "5px")
+        .style("font-size", "2vmin")
+        .style("font-weight", "normal")
+        .style("font-family", "Arial, sans-serif")
+        .style("text-align", "center")
+        .on("mouseover", function(){
+            if (self.currentPage < totalPages) {
+                d3.select(this).style("background-color", "#d0d0d0");
+            }
+        })
+        .on("mouseout", function(){
+            d3.select(this).style("background-color", "#f9f9f9");
+        })
+        .on("click", () => {
+            if (self.currentPage < totalPages) {
+                self.currentPage++;
+                self.createTable();
+                self.createPagination();
+            }
+        })
+        .append("span")
+        .text("Next")
+        .style("color", self.currentPage < totalPages ? "#333" : "rgba(0, 0, 0, 0.375)");
+}
+
+    if(allowPagination){
+        createPagination();
+    }
+    handleresize() {
+        this.updateSVGDimensions();
+        this.createTable();
+        if (this.allowPagination) {
+            this.createPagination();
+        }
+    }
+   
+    
+}
+const input={selects: '#table',
+    data:[
         { "Name": "Bhuvnaneshwar Kumar", "Age": 21, "Place": "Chennai", "PhoneNumber": 8248995718, "Email-id": "bhuv@gmail.com" },
         { "Name": "Nishant Siraj", "Age": 24, "Place": "Bangalore", "PhoneNumber": 7845123699, "Email-id": "nishant@gmail.com" },
-        { "Name": "Harish Kalyan", "Age": 55, "Place": "Karnataka", "PhoneNumber": 7725896001, "Email-id": "harishkalyan@gmail.com" },
-        { "Name": "Joshwin Prathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
-        { "Name": "Rajesh Kumar", "Age": 35, "Place": "Tenkasi", "PhoneNumber": 9003418837, "Email-id": "rajkumar1234@gmail.com" },
-        { "Name": "JoshwinPrathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
-        { "Name": "Rajesg Kumar", "Age": 35, "Place": "Tenkasi", "PhoneNumber": 9003418837, "Email-id": "rajkumar1234@gmail.com" },
-        { "Name": "Joshwin Prathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
-        { "Name": "Raj Kumar", "Age": 35, "Place": "Tenkasi", "PhoneNumber": 9003418837, "Email-id": "rajkumar1234@gmail.com" },
-        { "Name": "Harish Kalyan", "Age": 55, "Place": "Karnataka", "PhoneNumber": 7725896001, "Email-id": "harishkalyan@gmail.com" },
-        { "Name": "Joshwin Prathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
-        { "Name": "Raj Kumar", "Age": 35, "Place": "Tenkasi", "PhoneNumber": 9003418837, "Email-id": "rajkumar1234@gmail.com" },
-        { "Name": "Harish Kalyan", "Age": 55, "Place": "Karnataka", "PhoneNumber": 7725896001, "Email-id": "harishkalyan@gmail.com" },
-        { "Name": "Joshwin Prathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
-        { "Name": "Rajesh Kumar", "Age": 35, "Place": "Tenkasi", "PhoneNumber": 9003418837, "Email-id": "rajkumar1234@gmail.com" },
-        { "Name": "JoshwinPrathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
-        { "Name": "Rajesg Kumar", "Age": 35, "Place": "Tenkasi", "PhoneNumber": 9003418837, "Email-id": "rajkumar1234@gmail.com" },
-        { "Name": "Joshwin Prathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
-        { "Name": "Raj Kumar", "Age": 35, "Place": "Tenkasi", "PhoneNumber": 9003418837, "Email-id": "rajkumar1234@gmail.com" },
-        { "Name": "Harish Kalyan", "Age": 55, "Place": "Karnataka", "PhoneNumber": 7725896001, "Email-id": "harishkalyan@gmail.com" },
-        { "Name": "Joshwin Prathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
-        { "Name": "Raj Kumar", "Age": 35, "Place": "Tenkasi", "PhoneNumber": 9003418837, "Email-id": "rajkumar1234@gmail.com" },
-        { "Name": "Joshwin Prathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },      
-        { "Name": "Joshwin Prathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
-        { "Name": "Ayesha", "Age": 30, "Place": "Mumbai", "PhoneNumber": 7896541236, "Email-id": "ayesha@gmail.com" },
-        { "Name": "Rahul", "Age": 28, "Place": "Delhi", "PhoneNumber": 9876541230, "Email-id": "rahul@gmail.com" }
+       { "Name": "Ayesha", "Age": 30, "Place": "Mumbai", "PhoneNumber": 7896541236, "Email-id": "ayesha@gmail.com" },
+       { "Name": "Joshwin Prathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
+       { "Name": "Rajesh Kumar", "Age": 35, "Place": "Tenkasi", "PhoneNumber": 9003418837, "Email-id": "rajkumar1234@gmail.com" },
+       { "Name": "JoshwinPrathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
+       { "Name": "Rajesg Kumar", "Age": 35, "Place": "Tenkasi", "PhoneNumber": 9003418837, "Email-id": "rajkumar1234@gmail.com" },
+       { "Name": "Joshwin Prathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
+       { "Name": "Raj Kumar", "Age": 35, "Place": "Tenkasi", "PhoneNumber": 9003418837, "Email-id": "rajkumar1234@gmail.com" },
+       { "Name": "Harish Kalyan", "Age": 55, "Place": "Karnataka", "PhoneNumber": 7725896001, "Email-id": "harishkalyan@gmail.com" },
+       { "Name": "Joshwin Prathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
+       { "Name": "Raj Kumar", "Age": 35, "Place": "Tenkasi", "PhoneNumber": 9003418837, "Email-id": "rajkumar1234@gmail.com" },
+       { "Name": "Harish Kalyan", "Age": 55, "Place": "Karnataka", "PhoneNumber": 7725896001, "Email-id": "harishkalyan@gmail.com" },
+       { "Name": "Joshwin Prathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
+       { "Name": "Rajesh Kumar", "Age": 35, "Place": "Tenkasi", "PhoneNumber": 9003418837, "Email-id": "rajkumar1234@gmail.com" },
+       { "Name": "JoshwinPrathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
+       { "Name": "Rajesg Kumar", "Age": 35, "Place": "Tenkasi", "PhoneNumber": 9003418837, "Email-id": "rajkumar1234@gmail.com" },
+       { "Name": "Joshwin Prathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
+       { "Name": "Raj Kumar", "Age": 35, "Place": "Tenkasi", "PhoneNumber": 9003418837, "Email-id": "rajkumar1234@gmail.com" },
+       { "Name": "Harish Kalyan", "Age": 55, "Place": "Karnataka", "PhoneNumber": 7725896001, "Email-id": "harishkalyan@gmail.com" },
+       { "Name": "Joshwin Prathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
+       { "Name": "Raj Kumar", "Age": 35, "Place": "Tenkasi", "PhoneNumber": 9003418837, "Email-id": "rajkumar1234@gmail.com" },
+       { "Name": "Joshwin Prathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },      
+       { "Name": "Joshwin Prathap", "Age": 25, "Place": "Odisha", "PhoneNumber": 9248414482, "Email-id": "joshwinraj@gmail.com" },
+       { "Name": "Rahul", "Age": 28, "Place": "Delhi", "PhoneNumber": 9876541230, "Email-id": "rahul@gmail.com" }
     ],
-    columns: [
+    columns:[
         { name: "Name", sortable: true },
         { name: "Age", sortable: true },
         { name: "Place", sortable: true },
@@ -607,8 +638,11 @@ const inputs = {
         { name: "Email-id", sortable: false }
         
     ],
+    columnwidth: false,
+    tableColor:{headerColor:false,rowColor:false},
+    textStyle:{fontStyle:false},
+    title: "Personal Information",
     allowPagination: true,
-    rowsPerPage: 20
+    rowsPerPage: 10
 };
-
-table(inputs); 
+const table = new Table(input);
